@@ -99,9 +99,3 @@ The `.github/workflows/ci.yml` workflow automates testing and delivery every tim
 **Why size drops at each step:**
 - **Basic → Optimized:** switching from a general-purpose Ubuntu image to a purpose-built slim Python image removes unnecessary OS packages, and the multi-stage build discards pip caches and build dependencies.
 - **Optimized → Final:** swapping `slim` for `alpine` shrinks the base OS further, and the non-root user + healthcheck harden the image without adding meaningful size.
-
-Compare the sizes yourself after building all three:
-
-```bash
-docker images | grep docker-project1
-```
