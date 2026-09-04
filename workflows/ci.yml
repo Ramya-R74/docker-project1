@@ -1,0 +1,56 @@
+name: Phase 2 - CI (lint, test, build)
+
+# Trigger on every push and pull request touching this phase's folder
+on:
+  push:
+    branches: ["main"]
+    paths:
+      - "phase2-intermediate/**"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "phase2-intermediate/**"
+
+defaults:
+  run:
+    working-directory: phase2-intermediate
+
+jobs:
+  lint-and-test:
+    name: Lint & Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+
+      - name: Lint with flake8
+        run: flake8 app test_main.py --max-line-length=100
+
+      - name: Run tests
+        run: pytest -v
+
+  build-image:
+    name: Build Docker Image
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build image (not pushed - see Phase 3 for registry push)
+        uses: docker/build-push-action@v6
+        with:
+          context: phase2-intermediate
+          push: false
+          tags: docker-mastery:phase2
