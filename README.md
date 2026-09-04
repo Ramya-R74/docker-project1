@@ -1,77 +1,107 @@
 # Docker Mastery Project
-### A Progressive Journey from Beginner to Advanced Docker Usage
+### A Hands-On Journey from Docker Basics to CI/CD
 
 ![Docker Mastery Overview](images/docker-intro.png)
 
-This repository contains one FastAPI application, packaged and delivered three different ways across three phases — beginner, intermediate, and advanced — so you can teach or demo the full maturity curve of real-world Docker + CI/CD practice.
+This repository is my hands-on Docker learning project, where I take a small
+FastAPI application and progressively improve the way it is containerized,
+tested, automated, and delivered.
 
-The application code barely changes between phases; what changes is **how it's containerized, optimized, automated, and shipped.**
+The application remains mostly the same throughout the project. The main focus
+is on understanding how Docker practices evolve from a simple container build
+to an automated CI pipeline that publishes images to Docker Hub.
+
+---
+
+## Project Goals
+
+The main goals of this project are to understand:
+
+- Docker images and containers
+- Dockerfiles and image layers
+- Single-stage vs multi-stage builds
+- Docker image optimization
+- Running containers locally
+- Container health checks
+- Git and GitHub workflow
+- GitHub Actions
+- Continuous Integration (CI)
+- Using GitHub Secrets
+- Automatically building and pushing Docker images
+
+---
+
+# Application
+
+The application is a small **FastAPI** service.
+
+It provides three endpoints:
+
+| Endpoint | Purpose |
+|---|---|
+| `/` | Returns a welcome message and application status |
+| `/health` | Health check endpoint |
+| `/info` | Returns application metadata and version |
+
+The application listens on port `8000` inside the container.
+
+Example:
+
+```bash
+curl http://localhost:8000/
+```
 
 ---
 
 ## Folder Structure
-```
-docker-mastery-project/
-├── phase1-beginner/          # Ubuntu base, single-stage, manual Docker CLI
-├── phase2-intermediate/      # Slim base, multi-stage, basic CI pipeline
-├── phase3-advanced/          # Alpine base, cached CI/CD, scanning, push to Docker Hub + AWS ECR
-├── DOCKER-INSTALLATION.md    # Docker installation guide
-└── README.md                 # you are here
-```
 
-Each phase folder is self-contained (its own `Dockerfile`, `README.md`, requirements, and — from Phase 2 onward — its own GitHub Actions workflow), so you can `cd` into any one and follow along independently.
+```text
+docker-project1/
+├── .github/
+│   └── workflows/
+│       └── ci.yml          ← actual GitHub Actions workflow
+│
+├── app/
+├── images/
+├── Dockerfile
+├── Dockerfile-basic
+├── Dockerfile-optimized
+├── requirements.txt
+├── requirements-dev.txt
+├── test_main.py
+├── DOCKER-INSTALLATION.md
+├── EC2-SETUP.md
+└── README.md
+```
 
 ---
 
-## Quick Start — Build & Run Each Phase
+## CI/CD Pipeline
+
+The `.github/workflows/ci.yml` workflow automates testing and delivery every time code is pushed:
+
+1. **Checkout & setup** – checks out the repo and sets up Python.
+2. **Install & test** – installs `requirements-dev.txt` and runs `test_main.py` against the FastAPI app to catch regressions before anything is built.
+3. **Build** – builds the Docker image using the optimized multi-stage `Dockerfile`.
+4. **Authenticate** – logs in to Docker Hub using credentials stored as **GitHub Secrets** (never hardcoded).
+5. **Push** – tags and pushes the image to Docker Hub, so a working, tested image is published automatically on every merge — no manual `docker build`/`docker push` needed.
+
+---
+
+## Image Size Optimization
+
+| Dockerfile | Base Image | Build Strategy | Key Optimization | Approx. Size |
+|---|---|---|---|---|
+| `Dockerfile-basic` | `ubuntu:22.04` | Single-stage | Full OS + manually installed Python/pip; nothing trimmed, so build tools and package caches remain in the final image | ~400–600 MB |
+| `Dockerfile-optimized` | `python:3.12-slim` | Multi-stage (builder → runtime) | Dependencies are installed in a separate `builder` stage; only the installed packages (`/root/.local`) and app code are copied into the final slim image, leaving compilers/build tools behind | ~150–180 MB |
+| `Dockerfile` | `python:3.12-alpine` | Multi-stage, non-root, `HEALTHCHECK` | Same builder/runtime split as above but on minimal Alpine; runs as a non-root `appuser`; adds a container-level `/health` check | ~80–120 MB |
+
+**Why size drops at each step:**
+- **Basic → Optimized:** switching from a general-purpose Ubuntu image to a purpose-built slim Python image removes unnecessary OS packages, and the multi-stage build discards pip caches and build dependencies.
+- **Optimized → Final:** swapping `slim` for `alpine` shrinks the base OS further, and the non-root user + healthcheck harden the image without adding meaningful size.
+
+Compare the sizes yourself after building all three:
+
 ```bash
-# Phase 1 — Beginner
-cd phase1-beginner
-docker build -t docker-mastery:phase1 .
-docker run -d --name phase1-app -p 8000:8000 docker-mastery:phase1
-
-# Phase 2 — Intermediate
-cd ../phase2-intermediate
-docker build -t docker-mastery:phase2 .
-docker run -d --name phase2-app -p 8001:8000 docker-mastery:phase2
-
-# Phase 3 — Advanced
-cd ../phase3-advanced
-docker build -t docker-mastery:phase3 .
-docker run -d --name phase3-app -p 8002:8000 docker-mastery:phase3
+docker images | grep docker-project1
 ```
-
-## Compare Image Sizes Side by Side
-```bash
-docker images | grep docker-mastery
-```
-
----
-
-## Phase-wise Summary
-
-| | Phase 1 — Beginner | Phase 2 — Intermediate | Phase 3 — Advanced |
-|---|---|---|---|
-| **Base image** | `ubuntu:22.04` | `python:3.12-slim` | `python:3.12-alpine` |
-| **Build strategy** | Single-stage | Multi-stage | Multi-stage, non-root, `HEALTHCHECK` |
-| **Automation** | None (manual CLI) | Basic CI (lint → test → build) | Full CI/CD (cache → scan → tag → push) |
-| **Registries** | None | None | Docker Hub **and** AWS ECR |
-| **Security** | n/a | n/a | Trivy scanning, GitHub Secrets, OIDC AWS auth |
-| **Tagging** | n/a | n/a | commit SHA, `latest`, semantic version |
-| **Approx. image size** | 400–600MB+ | ~150–180MB | ~80–120MB |
-
----
-
-## Why This Structure Works
-- The same app runs throughout, so the learning stays focused on Docker/DevOps, not application logic.
-- Each phase fixes a concrete limitation of the one before it (image size → automation → production readiness).
-- It mirrors how real teams mature their Docker usage over time.
-- Every phase has its own README with copy-pasteable commands and a clear before/after story, ready to present.
-
----
-
-## Suggested Demo Flow
-1. Show Phase 1 running, then run `docker images` to show its size.
-2. Show Phase 2's Dockerfile side-by-side with Phase 1's, rebuild, and compare size + build time.
-3. Push a commit and show the Phase 2 GitHub Actions run (lint/test/build).
-4. Show Phase 3's pipeline run end-to-end: cache hit on rebuild, Trivy scan output, and the final image tags appearing in both Docker Hub and ECR.
